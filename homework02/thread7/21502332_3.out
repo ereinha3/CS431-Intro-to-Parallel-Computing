@@ -1,0 +1,6 @@
+using 16777216 elements and time as seed
+Time to do O(N-1) prefix sum on a 16777216 elements: 0.018519 (s)
+Time to do O(NlogN) //prefix sum on a 16777216 elements: 0.27954 (s)
+Pass
+Time to do 2(N-1) //prefix sum on a 16777216 elements: 0.305166 (s)
+Pass

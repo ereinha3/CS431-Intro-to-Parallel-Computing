@@ -1,0 +1,23 @@
+#!/bin/bash
+#SBATCH --account=cis431_531		    ### your ‘charge’ account 
+#SBATCH --partition=compute             ### queue to submit to
+#SBATCH --job-name=compu_pi             ### job name
+#SBATCH --output=thread21/%A_%a.out  ### file in which to store job stdout
+#SBATCH --error=thread21/%A_%a.err   ### file in which to store job stderr
+#SBATCH --time=00:15:00                 ### wall-clock time limit, in minutes
+#SBATCH --mem=16000M                    ### memory limit per node (K|M|G|T)
+#SBATCH --nodes=1                       ### number of nodes to use
+#SBATCH --ntasks-per-node=1             ### number of MPI tasks per node
+#SBATCH --cpus-per-task=21              ### number of CPUs for each task
+#SBATCH --array=1-4			### Job array to run 4 instances
+
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+export OMP_PLACES="cores"
+export OMP_PROC_BIND='spread'
+export OMP_DISPLAY_ENV='true'
+
+VALUES=(1048576 4194304 16777216 67108864)
+
+VALUE=${VALUES[$SLURM_ARRAY_TASK_ID-1]}
+
+./prefix ${VALUE}
