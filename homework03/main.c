@@ -348,11 +348,11 @@ void convert_coo_to_csr(int* row_ind, int* col_ind, double* val,
                         unsigned int** csr_row_ptr, unsigned int** csr_col_ind,
                         double** csr_vals)
 {
-    unsigned int* row_totals = calloc(m, sizeof(unsigned int));
+    unsigned int* row_sums = calloc(m, sizeof(unsigned int));
 
     // Count number of non-zero elements per row
     for (int i = 0; i < nnz; i++) {
-        row_totals[row_ind[i] - 1]++;
+        row_sums[row_ind[i] - 1]++;
     }
 
     // Allocate memory for CSR arrays
@@ -369,32 +369,32 @@ void convert_coo_to_csr(int* row_ind, int* col_ind, double* val,
     // Compute the CSR row pointers using a prefix sum
     #pragma omp for
     for (int i = 0; i < m; i++) {
-        csr_row[i + 1] = csr_row[i] + row_totals[i];
+        csr_row[i + 1] = csr_row[i] + row_sums[i];
     }
 
-    // Free row_totals array as it's no longer needed
-    free(row_totals);
+    // Free row_sums array as it's no longer needed
+    free(row_sums);
 
     // Track the current number of elements filled in each row
-    unsigned int* vals_filled_in = calloc(m, sizeof(unsigned int));
+    unsigned int* elements_per_row = calloc(m, sizeof(unsigned int));
 
     // Process each non-zero element to place it into the appropriate row in the CSR format
     #pragma omp for
     for (int i = 0; i < nnz; i++) {
         unsigned int row = row_ind[i] - 1; // COO index is 1-based, converting to 0-based
         unsigned int col = col_ind[i] - 1; // Same for columns
-        unsigned int index = csr_row[row] + vals_filled_in[row]; // Find the correct position in csr_col and csr_val
+        unsigned int index = csr_row[row] + elements_per_row[row]; // Find the correct position in csr_col and csr_val
 
         // Update the row's filled element count
-        vals_filled_in[row]++;
+        elements_per_row[row]++;
 
         // Place the value and column index into the CSR arrays
         csr_val[index] = val[i];
         csr_col[index] = col;
     }
 
-    // Free vals_filled_in array as it's no longer needed
-    free(vals_filled_in);
+    // Free elements_per_row array as it's no longer needed
+    free(elements_per_row);
 }
 
 /* Reads in a vector from file.
