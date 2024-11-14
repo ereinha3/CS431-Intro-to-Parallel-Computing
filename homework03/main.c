@@ -360,16 +360,12 @@ void convert_coo_to_csr(int* row_ind, int* col_ind, double* val,
     *csr_col_ind = calloc(nnz, sizeof(unsigned int));
     *csr_vals = calloc(nnz, sizeof(double));
 
-    unsigned int* csr_row = *csr_row_ptr;
-    unsigned int* csr_col = *csr_col_ind;
-    double* csr_val = *csr_vals;
-
-    csr_row[0] = 0;
+    (*csr_row_ptr)[0] = 0;
 
     // Compute the CSR row pointers using a prefix sum
     #pragma omp for
     for (int i = 0; i < m; i++) {
-        csr_row[i + 1] = csr_row[i] + row_sums[i];
+        (*csr_row_ptr)[i + 1] = (*csr_row_ptr)[i] + row_sums[i];
     }
 
     // Free row_sums array as it's no longer needed
@@ -383,14 +379,14 @@ void convert_coo_to_csr(int* row_ind, int* col_ind, double* val,
     for (int i = 0; i < nnz; i++) {
         unsigned int row = row_ind[i] - 1; // COO index is 1-based, converting to 0-based
         unsigned int col = col_ind[i] - 1; // Same for columns
-        unsigned int index = csr_row[row] + elements_per_row[row]; // Find the correct position in csr_col and csr_val
+        unsigned int index = (*csr_row_ptr)[row] + elements_per_row[row]; // Find the correct position in csr_col_ptr and csr_vals
 
         // Update the row's filled element count
         elements_per_row[row]++;
 
         // Place the value and column index into the CSR arrays
-        csr_val[index] = val[i];
-        csr_col[index] = col;
+        (*csr_vals)[index] = val[i];
+        (*csr_col_ind)[index] = col;
     }
 
     // Free elements_per_row array as it's no longer needed
