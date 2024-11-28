@@ -5,6 +5,8 @@
 #include <assert.h>
 #include <omp.h>
 #include <math.h>
+#include <algorithm>
+
 
 #include "main.h"
 #include "spmv.h"
@@ -88,6 +90,7 @@ int main(int argc, char** argv)
     convert_csr_to_ell(csr_row_ptr, csr_col_ind, csr_vals, m, n, nnz,
                        &ell_col_ind, &ell_vals, &n_new);
     fprintf(stdout, "done\n");
+    printf("n_new after csr->ell: %d \n", n_new);
     timer[CONVERT_TIME] += ElapsedTime(ReadTSC() - t0);
 
     // Load the input vector x 
@@ -135,11 +138,13 @@ int main(int argc, char** argv)
     double* dex; // input x on GPU
     double* deb; // result b on GPU
     t0 = ReadTSC();
-    allocate_ell_gpu(ell_col_ind, ell_vals, m, n_new, nnz, x, &dec, &dev, &dex,
+
+    allocate_ell_gpu(ell_col_ind, ell_vals, m, n, n_new, nnz, x, &dec, &dev, &dex,
                      &deb);
     timer[GPU_ALLOC_TIME] += ElapsedTime(ReadTSC() - t0);
 
     t0 = ReadTSC();
+
     spmv_gpu_ell(dec, dev, m, n_new, nnz, dex, deb);
     timer[GPU_ELL_TIME] += ElapsedTime(ReadTSC() - t0);
 
@@ -600,26 +605,37 @@ void convert_csr_to_ell(unsigned int* csr_row_ptr, unsigned int* csr_col_ind,
                         unsigned int** ell_col_ind, double** ell_vals, 
                         int* n_new)
 {
-    *n_new = 0;
+    unsigned int temp = 0;
 
     for (int i = 0; i < m; i++) {
         int curr_diff = csr_row_ptr[i + 1] - csr_row_ptr[i];
-        *n_new = std::max(curr_diff, *n_new);
+        temp = std::max(curr_diff, *n_new);
     }
 
-    *ell_col_ind = new unsigned_int[m * (*n_new)];
-    *ell_vals = new unsigned_int[m * (*n_new)];
+    *n_new = temp;
 
-    std::fill(*ell_col_ind, *ell_col_ind + m * (*n_new), -1); 
-    std::fill(*ell_vals, *ell_vals + m * (*n_new), 0.0); 
+    fprintf(stdout, "test before\n");
+    fprintf(stdout, "n_new: %d\n", *n_new);
+    fprintf(stdout, "test after\n");
+
+
+    *ell_col_ind = (unsigned int*)calloc(m * temp, sizeof(unsigned int));
+    *ell_vals= (double*)calloc(m * temp, sizeof(double));
 
     for (int i = 0; i < m; i++){
         int nnz_in_row = csr_row_ptr[i+1] - csr_row_ptr[i];
         for (int j = 0; j < nnz_in_row; j++){
-            (*ell_col_ind)[csr_row_ptr[i] + j] = csr_col_ind[csr_row_ptr[i] + j];
-            (*ell_vals)[csr_row_ptr[i] + j] = vals[csr_row_ptr[i] + j];
+            (*ell_col_ind)[i * temp + j] = csr_col_ind[csr_row_ptr[i] + j];
+            (*ell_vals)[i * temp + j] = csr_vals[csr_row_ptr[i] + j];
+        }
+        if (nnz_in_row < temp){
+            for (int j = nnz_in_row; j < temp; j++){
+                (*ell_col_ind)[i * temp + j] = 0;
+                (*ell_vals)[i * temp + j] = 0.0;
+            }
         }
     }
+
 }
 
 

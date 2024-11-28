@@ -6,7 +6,7 @@ extern "C" {
 
 void spmv_gpu_ell(unsigned int* col_ind, double* vals, int m, int n, int nnz, 
                   double* x, double* b);
-void allocate_ell_gpu(unsigned int* col_ind, double* vals, int m, int n, 
+void allocate_ell_gpu(unsigned int* col_ind, double* vals, int m, int n, int n_new, 
                       int nnz, double* x, unsigned int** dev_col_ind, 
                       double** dev_vals, double** dev_x, double** dev_b);
 void spmv_gpu_2(unsigned int* row_ptr, unsigned int* col_ind, double* vals,

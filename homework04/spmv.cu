@@ -7,18 +7,57 @@
 
 #include "spmv.h"
 
+#define BLOCKDIM 64
+
+#define CUDA_CHECK(call) \
+    do { \
+        cudaError_t err = call; \
+        if (err != cudaSuccess) { \
+            fprintf(stderr, "CUDA error at %s:%d: %s\n", __FILE__, __LINE__, cudaGetErrorString(err)); \
+            exit(EXIT_FAILURE); \
+        } \
+    } while (0)
+
 template <class T>
 __global__ void
 spmv_kernel_ell(unsigned int* col_ind, T* vals, int m, int n, int nnz, 
                 double* x, double* b)
-{
+{    
+    T thread_sum = 0.0;
 
-    // COMPLETE THIS FUNCTION
+    for (unsigned int i = threadIdx.x; i<n; i += BLOCKDIM){
+        if ((blockIdx.x * n + i) < (m * n)) { // Check to ensure within bounds
+            unsigned int col = col_ind[blockIdx.x * n + i];
+            thread_sum += (vals[blockIdx.x * n + i] * x[col]);
+        }
+    }
+
+    __shared__ T shared_mem[BLOCKDIM];
+
+    shared_mem[threadIdx.x] = thread_sum;
+
+    __syncthreads();
+
+
+    // parallel reduction
+    for (unsigned int i = (BLOCKDIM >> 1); i > 0; i >>= 1)
+    {
+        if (threadIdx.x < i){
+            shared_mem[threadIdx.x] += shared_mem[threadIdx.x + i];
+        }
+    }
+
+    __syncthreads();
+
+    if (threadIdx.x == 0) {
+        b[blockIdx.x] = shared_mem[0];
+    }
+
 }
 
 
 
-void spmv_gpu_ell(unsigned int* col_ind, double* vals, int m, int n, int nnz, 
+void spmv_gpu_ell(unsigned int* col_ind, double* vals, int m, int n, int n_new, int nnz, 
                   double* x, double* b)
 {
     // timers
@@ -30,7 +69,7 @@ void spmv_gpu_ell(unsigned int* col_ind, double* vals, int m, int n, int nnz,
 
     // GPU execution parameters
     unsigned int blocks = m; 
-    unsigned int threads = 64; 
+    unsigned int threads = BLOCKDIM; 
     unsigned int shared = threads * sizeof(double);
 
     dim3 dimGrid(blocks, 1, 1);
@@ -40,8 +79,14 @@ void spmv_gpu_ell(unsigned int* col_ind, double* vals, int m, int n, int nnz,
     for(unsigned int i = 0; i < MAX_ITER; i++) {
         cudaDeviceSynchronize();
         spmv_kernel_ell<double><<<dimGrid, dimBlock, shared>>>(col_ind, vals, 
-                                                               m, n, nnz, x, b);
-    }
+                                                               m, n, n_new, nnz, x, b);
+        printf("Kernel passed %d times\n", i+1);
+        cudaError_t err = cudaGetLastError();
+        if (err != cudaSuccess) {
+            printf("Kernel launch error: %s\n", cudaGetErrorString(err));
+            break;
+        }
+    } 
     checkCudaErrors(cudaEventRecord(stop, 0));
     checkCudaErrors(cudaEventSynchronize(stop));
     checkCudaErrors(cudaEventElapsedTime(&elapsedTime, start, stop));
@@ -52,64 +97,46 @@ void spmv_gpu_ell(unsigned int* col_ind, double* vals, int m, int n, int nnz,
 
 
 
-void allocate_ell_gpu(unsigned int* col_ind, double* vals, int m, int n, 
+void allocate_ell_gpu(unsigned int* col_ind, double* vals, int m, int n, int n_new,
                       int nnz, double* x, unsigned int** dev_col_ind, 
                       double** dev_vals, double** dev_x, double** dev_b)
 {
     // x -> n
     // b -> m
-    cudaError_t error = cudaMalloc((void**)dev_col_ind, nnz * sizeof(unsigned int));
-    if (error != cudaSuccess){
-        std:cerr << 'failed at dev_col_ind malloc' << cudaGetErrorString(err) << std::endl;
-    }
-    error = cudaMalloc((void**)dev_vals, nnz * sizeof(double));
-    if (error != cudaSuccess){
-        std:cerr << 'failed at dev_vals malloc' << cudaGetErrorString(err) << std::endl;
-        cudaFree(*dev_col_ind);
-    }
-    error = cudaMalloc((void**)dev_x, n * sizeof(double));
-    if (error != cudaSuccess){
-        std:cerr << 'failed at dev_x malloc' << cudaGetErrorString(err) << std::endl;
-        cudaFree(*dev_col_ind);
-        cudaFree(*dev_vals);
-    }
-    error = cudaMalloc((void**)dev_b, m * sizeof(double));
-    if (error != cudaSuccess){
-        std:cerr << 'failed at dev_b malloc' << cudaGetErrorString(err) << std::endl;
-        cudaFree(*dev_col_ind);
-        cudaFree(*dev_vals);
-        cudaFree(*dev_x);
-    }
-    error = cudaMemcpy(*dev_col_ind, col_ind, nnz * sizeof(unsigned int), cudaMemcpyHostToDevice);
-    if (error != cudaSuccess){
-        std:cerr << 'failed at dev_col_ind memcpy' << cudaGetErrorString(err) << std::endl;
-        cudaFree(*dev_col_ind);
-        cudaFree(*dev_vals);
-        cudaFree(*dev_x);
-        cudaFree(*dev_b);
-        return;
-    }
-    error = cudaMemcpy(*dev_vals, vals, nnz * sizeof(double), cudaMemcpyHostToDevice);
-    if (error != cudaSuccess){
-        std:cerr << 'failed at dev_vals memcpy' << cudaGetErrorString(err) << std::endl;
-        cudaFree(*dev_col_ind);
-        cudaFree(*dev_vals);
-        cudaFree(*dev_x);
-        cudaFree(*dev_b);
-        return;
-    }
-    error = cudaMemcpy(*dev_x, x, n * sizeof(double), cudaMemcpyHostToDevice);
-    if (error != cudaSuccess){
-        std:cerr << 'failed at dev_x memcpy' << cudaGetErrorString(err) << std::endl;
-        cudaFree(*dev_col_ind);
-        cudaFree(*dev_vals);
-        cudaFree(*dev_x);
-        cudaFree(*dev_b);
-        return;
-    }
+    CUDA_CHECK(cudaMalloc(dev_col_ind, m * n_new * sizeof(unsigned int)));
+    CUDA_CHECK(cudaMalloc(dev_vals, m * n_new * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(dev_x, n * sizeof(double)));
+    CUDA_CHECK(cudaMalloc(dev_b, m * sizeof(double)));
 
-    // copy ELL data to GPU and allocate memory for output
-    // COMPLETE THIS FUNCTION
+    CUDA_CHECK(cudaMemcpy(*dev_col_ind, col_ind, m * n_new * sizeof(unsigned int), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(*dev_vals, vals, m * n_new * sizeof(double), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemcpy(*dev_x, x, n * sizeof(double), cudaMemcpyHostToDevice));
+    CUDA_CHECK(cudaMemset(*dev_b, 0, m * sizeof(double)));
+
+    // col_ind back to the host and print
+    // unsigned int* host_col_ind = (unsigned int*)malloc(m * n_new * sizeof(unsigned int));
+    // CUDA_CHECK(cudaMemcpy(host_col_ind, *dev_col_ind, m * n_new * sizeof(unsigned int), cudaMemcpyDeviceToHost));
+
+    // for (int i = 0; i < (m * n_new); i++) {
+    //     if (i % n_new == 0) {
+    //         fprintf(stdout, "\n");
+    //     }
+    //     fprintf(stdout, "%d ", host_col_ind[i]);
+    // }
+
+    // free(host_col_ind);
+
+    // unsigned int* host_vals = (unsigned int*)malloc(m * n_new * sizeof(unsigned int));
+    // CUDA_CHECK(cudaMemcpy(host_vals, *dev_vals, m * n_new * sizeof(unsigned int), cudaMemcpyDeviceToHost));
+
+    // for (int i = 0; i < (m * n_new); i++) {
+    //     if (i % n_new == 0) {
+    //         fprintf(stdout, "\n");
+    //     }
+    //     fprintf(stdout, "%d ", host_vals[i]);
+    // }
+
+    // free(host_vals);
 }
 
 void allocate_csr_gpu(unsigned int* row_ptr, unsigned int* col_ind, 
@@ -118,69 +145,16 @@ void allocate_csr_gpu(unsigned int* row_ptr, unsigned int* col_ind,
                       double** dev_vals, double** dev_x, double** dev_b)
 {
 
-    cudaError_t error = cudaMalloc((void**)dev_row_ptr, (m+1) * sizeof(unsigned int));
-    if (error != cudaSuccess){
-        std:cerr << 'failed at dev_row_ptr malloc' << cudaGetErrorString(err) << std::endl;
-    }
-    error = cudaMalloc((void**)dev_col_ind, nnz * sizeof(unsigned int));
-    if (error != cudaSuccess){
-        std:cerr << 'failed at dev_vals malloc' << cudaGetErrorString(err) << std::endl;
-        cudaFree(*dev_row_ptr);
-    } 
-    error = cudaMalloc((void**)dev_vals, nnz * sizeof(double));
-    if (error != cudaSuccess){
-        std:cerr << 'failed at dev_x malloc' << cudaGetErrorString(err) << std::endl;
-        cudaFree(*dev_row_ptr);
-        cudaFree(*dev_col_ind);
-    }
-    error = cudaMalloc((void**)dev_x, n * sizeof(double));
-    if (error != cudaSuccess){
-        std:cerr << 'failed at dev_x malloc' << cudaGetErrorString(err) << std::endl;
-        cudaFree(*dev_row_ptr);
-        cudaFree(*dev_col_ind);
-        cudaFree(*dev_vals);
-    }
-    error = cudaMalloc((void**)dev_b, m * sizeof(double));
-    if (error != cudaSuccess){
-        std:cerr << 'failed at dev_b malloc' << cudaGetErrorString(err) << std::endl;
-        cudaFree(*dev_row_ptr);
-        cudaFree(*dev_col_ind);
-        cudaFree(*dev_vals);
-        cudaFree(*dev_x);
-    }
-    error = cudaMemcpy(*dev_col_ind, col_ind, nnz * sizeof(unsigned int), cudaMemcpyHostToDevice);
-    if (error != cudaSuccess){
-        std:cerr << 'failed at dev_col_ind memcpy' << cudaGetErrorString(err) << std::endl;
-        cudaFree(*dev_row_ptr);
-        cudaFree(*dev_col_ind);
-        cudaFree(*dev_vals);
-        cudaFree(*dev_x);
-        cudaFree(*dev_b);
-        return;
-    }
-    error = cudaMemcpy(*dev_vals, vals, nnz * sizeof(double), cudaMemcpyHostToDevice);
-    if (error != cudaSuccess){
-        std:cerr << 'failed at dev_vals memcpy' << cudaGetErrorString(err) << std::endl;
-        cudaFree(*dev_row_ptr);
-        cudaFree(*dev_col_ind);
-        cudaFree(*dev_vals);
-        cudaFree(*dev_x);
-        cudaFree(*dev_b);
-        return;
-    }
-    error = cudaMemcpy(*dev_x, x, n * sizeof(double), cudaMemcpyHostToDevice);
-    if (error != cudaSuccess){
-        std:cerr << 'failed at dev_x memcpy' << cudaGetErrorString(err) << std::endl;
-        cudaFree(*dev_row_ptr);
-        cudaFree(*dev_col_ind);
-        cudaFree(*dev_vals);
-        cudaFree(*dev_x);
-        cudaFree(*dev_b);
-        return;
-    }
+    cudaMalloc(dev_row_ptr, (m+1) * sizeof(unsigned int));
+    cudaMalloc(dev_col_ind, nnz * sizeof(unsigned int));
+    cudaMalloc(dev_vals, nnz * sizeof(double));
+    cudaMalloc(dev_x, n * sizeof(double));
+    cudaMalloc(dev_b, m * sizeof(double));
 
-    // copy CSR data to GPU and allocate memory for output
-    // COMPLETE THIS FUNCTION
+    cudaMemcpy(*dev_row_ptr, row_ptr, (m+1) * sizeof(unsigned int), cudaMemcpyHostToDevice);
+    cudaMemcpy(*dev_col_ind, col_ind, nnz * sizeof(unsigned int), cudaMemcpyHostToDevice);
+    cudaMemcpy(*dev_vals, vals, nnz * sizeof(double), cudaMemcpyHostToDevice);
+    cudaMemcpy(*dev_x, x, n * sizeof(double), cudaMemcpyHostToDevice);
 }
 
 void get_result_gpu(double* dev_b, double* b, int m)
@@ -222,12 +196,12 @@ void CopyData(
 
   // Allocate pinned memory on host (for faster HtoD copy)
   T* h_in_pinned = NULL;
-  checkCudaErrors(cudaMallocHost((void**) &h_in_pinned, N * dsize));
+  checkCudaErrors(cudaMallocHost( &h_in_pinned, N * dsize));
   assert(h_in_pinned);
   memcpy(h_in_pinned, input, N * dsize);
 
   // copy data
-  checkCudaErrors(cudaMalloc((void**) d_in, N * dsize));
+  checkCudaErrors(cudaMalloc( d_in, N * dsize));
   checkCudaErrors(cudaEventRecord(start, 0));
   checkCudaErrors(cudaMemcpy(*d_in, h_in_pinned,
                              N * dsize, cudaMemcpyHostToDevice));
@@ -247,42 +221,37 @@ __global__ void
 spmv_kernel(unsigned int* row_ptr, unsigned int* col_ind, T* vals, 
             int m, int n, int nnz, double* x, double* b)
 {
-    extern __shared__ double shared_sum[];
-
-    // Get the row index this block is responsible for
     int row = blockIdx.x;
-
-    // Determine the start and end indices in the CSR format
     int row_start = row_ptr[row];
     int row_end = row_ptr[row + 1];
-    
-    // Compute the thread ID within the block
-    int thread_id = threadIdx.x;
+    int num_threads = blockDim.x;
 
-    // Initialize shared memory for the reduction
-    shared_sum[thread_id] = 0.0;
+    T temp = 0.0;
 
-    // Iterate over the elements in the row that this thread should handle
-    for (int idx = row_start + thread_id; idx < row_end; idx += blockDim.x) {
-        unsigned int col = col_ind[idx]; // Get the column index
-        T value = vals[idx];             // Get the value in the matrix
-        shared_sum[thread_id] += value * x[col]; // Compute partial dot product
+    for (int idx = row_start + threadIdx.x; idx < row_end; idx += num_threads) {
+        unsigned int col = col_ind[idx]; 
+        T value = vals[idx];             
+        temp += (value * x[col]); 
     }
 
-    // Synchronize to make sure all threads have completed the summation
+    __shared__ double shared_mem[BLOCKDIM];
+
+    shared_mem[threadIdx.x] = temp;
+
     __syncthreads();
 
-    // Perform reduction to get the final dot product result for the row
-    for (int stride = blockDim.x / 2; stride > 0; stride /= 2) {
-        if (thread_id < stride) {
-            shared_sum[thread_id] += shared_sum[thread_id + stride];
+    // parallel reduction
+    for (int i = (num_threads >> 1); i > 0; i >>= 1) {
+        if (threadIdx.x < i) {
+            shared_mem[threadIdx.x] += shared_mem[threadIdx.x + i];
         }
-        __syncthreads();
     }
+    
+    __syncthreads();
 
-    // The result of the reduction is in shared_sum[0], so store it in b[row]
-    if (thread_id == 0) {
-        b[row] = shared_sum[0];
+    // result will all be in first thread
+    if (threadIdx.x == 0) {
+        b[row] = shared_mem[0];
     }
 }
 
@@ -302,7 +271,7 @@ void spmv_gpu(unsigned int* row_ptr, unsigned int* col_ind, double* vals,
     // 1 thread block per row
     // 64 threads working on the non-zeros on the same row
     unsigned int blocks = m; 
-    unsigned int threads = 64; 
+    unsigned int threads = BLOCKDIM; 
     unsigned int shared = threads * sizeof(double);
 
     dim3 dimGrid(blocks, 1, 1);
