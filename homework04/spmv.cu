@@ -25,19 +25,15 @@ spmv_kernel_ell(unsigned int* col_ind, T* vals, int m, int n, int nnz,
 {    
     T thread_sum = 0.0;
 
+    __shared__ double shared_mem[BLOCKDIM];
+    // __shared__ T shared_mem[BLOCKDIM];
+
     for (unsigned int i = threadIdx.x; i<n; i += BLOCKDIM){
-        if ((blockIdx.x * n + i) < (m * n)) { // Check to ensure within bounds
-            unsigned int col = col_ind[blockIdx.x * n + i];
-            thread_sum += (vals[blockIdx.x * n + i] * x[col]);
-        }
+        thread_sum += (vals[blockIdx.x * n + i] * x[col_ind[blockIdx.x * n + i]]);
     }
 
-    __shared__ T shared_mem[BLOCKDIM];
-
     shared_mem[threadIdx.x] = thread_sum;
-
     __syncthreads();
-
 
     // parallel reduction
     for (unsigned int i = (BLOCKDIM >> 1); i > 0; i >>= 1)
@@ -45,9 +41,16 @@ spmv_kernel_ell(unsigned int* col_ind, T* vals, int m, int n, int nnz,
         if (threadIdx.x < i){
             shared_mem[threadIdx.x] += shared_mem[threadIdx.x + i];
         }
+        // THIS TOOK ME LITERALLY 4-5 HOURS TO FIGURE OUT I NEED SYNC THREADS HERE AND NOT
+        // AFTER THE LOOP!!!!!
+        // I know that I need it here now as there could be race conditions where two threads seek to access the same variable
+        
+        __syncthreads();
     }
 
-    __syncthreads();
+    
+
+    // __syncthreads();
 
     if (threadIdx.x == 0) {
         b[blockIdx.x] = shared_mem[0];
@@ -57,7 +60,7 @@ spmv_kernel_ell(unsigned int* col_ind, T* vals, int m, int n, int nnz,
 
 
 
-void spmv_gpu_ell(unsigned int* col_ind, double* vals, int m, int n, int n_new, int nnz, 
+void spmv_gpu_ell(unsigned int* col_ind, double* vals, int m, int n, int nnz, 
                   double* x, double* b)
 {
     // timers
@@ -79,8 +82,7 @@ void spmv_gpu_ell(unsigned int* col_ind, double* vals, int m, int n, int n_new, 
     for(unsigned int i = 0; i < MAX_ITER; i++) {
         cudaDeviceSynchronize();
         spmv_kernel_ell<double><<<dimGrid, dimBlock, shared>>>(col_ind, vals, 
-                                                               m, n, n_new, nnz, x, b);
-        printf("Kernel passed %d times\n", i+1);
+                                                               m, n, nnz, x, b);
         cudaError_t err = cudaGetLastError();
         if (err != cudaSuccess) {
             printf("Kernel launch error: %s\n", cudaGetErrorString(err));
@@ -108,9 +110,9 @@ void allocate_ell_gpu(unsigned int* col_ind, double* vals, int m, int n, int n_n
     CUDA_CHECK(cudaMalloc(dev_x, n * sizeof(double)));
     CUDA_CHECK(cudaMalloc(dev_b, m * sizeof(double)));
 
-    CUDA_CHECK(cudaMemcpy(*dev_col_ind, col_ind, m * n_new * sizeof(unsigned int), cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpy(*dev_vals, vals, m * n_new * sizeof(double), cudaMemcpyHostToDevice));
-    CUDA_CHECK(cudaMemcpy(*dev_x, x, n * sizeof(double), cudaMemcpyHostToDevice));
+    CopyData(col_ind, m*n_new, sizeof(unsigned int), dev_col_ind);
+    CopyData(vals, m*n_new, sizeof(double), dev_vals);
+    CopyData(x, n, sizeof(double), dev_x);
     CUDA_CHECK(cudaMemset(*dev_b, 0, m * sizeof(double)));
 
     // col_ind back to the host and print
@@ -151,10 +153,13 @@ void allocate_csr_gpu(unsigned int* row_ptr, unsigned int* col_ind,
     cudaMalloc(dev_x, n * sizeof(double));
     cudaMalloc(dev_b, m * sizeof(double));
 
-    cudaMemcpy(*dev_row_ptr, row_ptr, (m+1) * sizeof(unsigned int), cudaMemcpyHostToDevice);
-    cudaMemcpy(*dev_col_ind, col_ind, nnz * sizeof(unsigned int), cudaMemcpyHostToDevice);
-    cudaMemcpy(*dev_vals, vals, nnz * sizeof(double), cudaMemcpyHostToDevice);
-    cudaMemcpy(*dev_x, x, n * sizeof(double), cudaMemcpyHostToDevice);
+    CopyData(col_ind, nnz, sizeof(unsigned int), dev_col_ind);
+    CopyData(vals, nnz, sizeof(double), dev_vals);
+    CopyData(row_ptr, m+1, sizeof(unsigned int), dev_row_ptr);
+    CopyData(x, n, sizeof(double), dev_x);
+
+    cudaMemset(*dev_b, 0, m*sizeof(double));
+
 }
 
 void get_result_gpu(double* dev_b, double* b, int m)
@@ -196,12 +201,12 @@ void CopyData(
 
   // Allocate pinned memory on host (for faster HtoD copy)
   T* h_in_pinned = NULL;
-  checkCudaErrors(cudaMallocHost( &h_in_pinned, N * dsize));
+  checkCudaErrors(cudaMallocHost((void**) &h_in_pinned, N * dsize));
   assert(h_in_pinned);
   memcpy(h_in_pinned, input, N * dsize);
 
   // copy data
-  checkCudaErrors(cudaMalloc( d_in, N * dsize));
+  checkCudaErrors(cudaMalloc((void**) d_in, N * dsize));
   checkCudaErrors(cudaEventRecord(start, 0));
   checkCudaErrors(cudaMemcpy(*d_in, h_in_pinned,
                              N * dsize, cudaMemcpyHostToDevice));
@@ -221,37 +226,31 @@ __global__ void
 spmv_kernel(unsigned int* row_ptr, unsigned int* col_ind, T* vals, 
             int m, int n, int nnz, double* x, double* b)
 {
-    int row = blockIdx.x;
-    int row_start = row_ptr[row];
-    int row_end = row_ptr[row + 1];
-    int num_threads = blockDim.x;
-
     T temp = 0.0;
 
-    for (int idx = row_start + threadIdx.x; idx < row_end; idx += num_threads) {
-        unsigned int col = col_ind[idx]; 
-        T value = vals[idx];             
-        temp += (value * x[col]); 
-    }
-
     __shared__ double shared_mem[BLOCKDIM];
+
+    for (int idx = row_ptr[blockIdx.x] + threadIdx.x; idx < row_ptr[blockIdx.x + 1]; idx += BLOCKDIM) {        
+        temp += (vals[idx] * x[col_ind[idx]]); 
+    }
 
     shared_mem[threadIdx.x] = temp;
 
     __syncthreads();
 
     // parallel reduction
-    for (int i = (num_threads >> 1); i > 0; i >>= 1) {
+    for (int i = (BLOCKDIM >> 1); i > 0; i >>= 1) {
         if (threadIdx.x < i) {
             shared_mem[threadIdx.x] += shared_mem[threadIdx.x + i];
-        }
+        }        
+        __syncthreads();
     }
+
     
-    __syncthreads();
 
     // result will all be in first thread
     if (threadIdx.x == 0) {
-        b[row] = shared_mem[0];
+        b[blockIdx.x] = shared_mem[0];
     }
 }
 

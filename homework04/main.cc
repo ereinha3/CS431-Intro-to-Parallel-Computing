@@ -609,7 +609,9 @@ void convert_csr_to_ell(unsigned int* csr_row_ptr, unsigned int* csr_col_ind,
 
     for (int i = 0; i < m; i++) {
         int curr_diff = csr_row_ptr[i + 1] - csr_row_ptr[i];
-        temp = std::max(curr_diff, *n_new);
+        if (curr_diff > temp){
+            temp = curr_diff;
+        }
     }
 
     *n_new = temp;

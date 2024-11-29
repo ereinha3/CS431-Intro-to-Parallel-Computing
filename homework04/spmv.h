@@ -25,4 +25,3 @@ void CopyData(
   unsigned int dsize,
   T** d_in);
 #endif
-

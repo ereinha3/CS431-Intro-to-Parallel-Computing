@@ -1,0 +1,83 @@
+\documentclass{article}
+\usepackage{amsmath}
+
+\title{Sparse Matrix-Vector Multiplication Performance Analysis}
+\author{Ethan Reinhart}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section*{Introduction}
+
+In this report, we present the results of a Sparse Matrix-Vector Multiplication (SpMV) performance test, comparing CPU and GPU implementations. All implementations were checked for performance on the Talapas HPC and GPU implementations were created using CUDA.
+
+\section*{Matrix Details}
+
+The matrix used in the test is a symmetric sparse matrix with the following properties:
+\begin{itemize}
+    \item Matrix Size: $62451 \times 62451$ 
+    \item Number of non-zero entries: 4,007,383
+    \item The matrix is symmetric, and after expanding it, the matrix has been optimized for sparse representation.
+\end{itemize}
+
+The matrix was multiplied using Compressed Sparse Row (CSR) format (on CPU and GPU) and Ellpack (ELL) format (on GPU).
+
+\section*{GPU vs. CPU SpMV}
+
+The CPU was implemented in parallel using the OMP library. A total of 28 cores were utilized to execute the parallel CPU implementation. The GPU implementation was written using CUDA and was executed on a single GPU. Below are the results for each method:
+
+\subsection*{GPU CSR SpMV}
+Here are the runtimes for GPU CSR with varying numbers of threads.
+\begin{table}[h!]
+\centering
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+Number of Threads & 16 & 32 & 64 & 128 \\ \hline
+Seconds & 0.00014969 & 0.00012883 & 0.00015060 & 0.00024482 \\ \hline
+\end{tabular}
+\caption{GPU CSR with n threads per row}
+\label{tab:example}
+\end{table}
+
+\subsection*{GPU ELL SpMV}
+Here are the runtimes for GPU ELL with varying numbers of threads.
+\begin{table}[h!]
+\centering
+\begin{tabular}{|c|c|c|c|c|}
+\hline
+Number of Threads & 16 & 32 & 64 & 128 \\ \hline
+Seconds & 0.00013603 & 0.00013250 & 0.00016596 & 0.00023547 \\ \hline
+\end{tabular}
+\caption{GPU ELL with n threads per row}
+\label{tab:example}
+\end{table}
+
+\subsection*{CPU SpMV}
+The runtime for a single parallel execution with 28 threads on the CPU was 0.021282 seconds.
+
+\section*{Performance Analysis}
+
+The test shows that the GPU implementations provide substantial speedups compared to the CPU implementation. The GPU CSR SpMV with 32 threads is approximately 165 times faster than the CPU SpMV (calculated by comparing the execution times).
+
+\subsection*{2-Norm Comparison}
+The 2-Norm between the CPU and GPU results was found to be $1.768525 \times 10^{-10}$, indicating that the GPU results are almost identical to the CPU results, demonstrating correctness in the GPU implementation.
+
+\section*{Execution Times (Module Breakdown)}
+
+There is substantial overhead that comes with executing CUDA code such as the memory allocation and copying to the GPU. We see that we have the following runtimes for various tasks.
+\begin{itemize}
+    \item Load: 0.714426 seconds
+    \item Convert (COO to CSR): 0.024515 seconds
+    \item GPU Memory Allocation: 0.243027 seconds
+    \item Store: 0.022542 seconds
+\end{itemize}
+
+We see here that the GPU memory allocation takes longer than it takes to simply run the code in parallel on the CPU. This means that it is quicker in this circumstance to run the code on the CPU in parallel rather than copy all data to the GPU. 
+
+\section*{Conclusion}
+
+The GPU implementations for Sparse Matrix-Vector Multiplication (CSR and ELL formats) offer significant speedup over the CPU implementation for kernel operations. This means that multiple calls to the same kernel on the GPU will likely be better than scheduling on the CPU. However, the GPU also requires significant overhead to allocate and copy memory. This results to an overall slower runtime on this project. The results of both are highly accurate, with negligible differences between CPU and GPU computations as evidenced by the 2-Norm value. This shows that GPU programming is well-suited for tasks were recurrent kernel calls are needed but less suited for tasks with few kernel calls as the memory allocation and copying can be costly.
+
+\end{document}
