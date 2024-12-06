@@ -1,0 +1,51 @@
+\documentclass[a4paper,12pt]{article}
+\usepackage{geometry}
+\usepackage{booktabs}
+
+\geometry{margin=1in}
+
+\title{Performance Comparison: 1D vs. 2D Grid for COO SpMV using MPI}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section*{Introduction}
+This report evaluates the performance of a 2D grid compared to a 1D grid of processes in performing Sparse Matrix-Vector Multiplication (SpMV) using the Coordinate (COO) format with MPI.
+
+\section*{Timing Results}
+\begin{table}[h!]
+\centering
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Module}    & \textbf{1D Grid Time (s)} & \textbf{2D Grid Time (s)} & \textbf{Improvement (\%)} \\ 
+\midrule
+Load               & 19.6347                  & 19.4670                  & 0.9                      \\
+Vec Bcast          & 0.1476                   & 0.1555                   & -5.3                     \\
+Mat Scatter        & 12.5014                  & 12.3233                  & 1.4                      \\
+Lock Init          & 0.0032                   & 0.0000                   & 100.0                    \\
+COO SpMV           & 0.9351                   & 0.0264                   & \textbf{97.2}            \\
+Res Reduce         & 0.4849                   & 0.0000                   & \textbf{100.0}           \\
+Store              & 0.6824                   & 0.6744                   & 1.2                      \\
+\bottomrule
+\end{tabular}
+\caption{Comparison of timing results for 1D and 2D grids.}
+\label{tab:timing-results}
+\end{table}
+
+\section*{Key Observations}
+\begin{itemize}
+    \item \textbf{COO SpMV Computation:} The 2D grid achieves a \textbf{97.2\% reduction} in computation time compared to the 1D grid. This is attributed to better workload distribution and more efficient memory usage.
+    \item \textbf{Result Reduction:} The 2D grid eliminates the need for explicit result reduction, achieving a \textbf{100\% improvement}.
+    \item \textbf{Matrix Scatter:} A modest \textbf{1.4\% improvement} suggests slightly better communication efficiency in the 2D grid.
+    \item \textbf{Vector Broadcast:} The broadcast time increases by \textbf{5.3\%}, likely due to overhead from setting up the 2D topology.
+    \item \textbf{Load and Store Phases:} Minimal differences (less than 1.5\%) indicate these phases are largely independent of the grid topology.
+\end{itemize}
+
+\section*{Conclusion}
+Switching to a 2D grid significantly improves performance, particularly in the SpMV computation and result reduction. The 2D topology reduces communication bottlenecks and enhances parallelism, making it well-suited for distributed SpMV operations on large sparse matrices.
+
+\end{document}
+

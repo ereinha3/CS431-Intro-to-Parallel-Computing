@@ -110,6 +110,16 @@ int main(int argc, char** argv)
 
 	#if 0
 	// Calculate SpMV using naive distributed COO
+    // int* copy_row_ind = (int*)malloc(sizeof(int)*nnz);
+    // int* copy_col_ind = (int*)malloc(sizeof(int)*nnz);
+    // double* copy_val = (double*)malloc(sizeof(double)*nnz);
+    // double* copy_x = (double*)malloc(sizeof(double)*n);
+    // memcpy(copy_row_ind, row_ind, sizeof(int) * nnz);
+    // memcpy(copy_col_ind, col_ind, sizeof(int) * nnz);
+    // memcpy(copy_val, val, sizeof(double) * nnz);
+    // memcpy(copy_x, vector_x, sizeof(double) * n);
+
+
 	spmv_coo_naive(world_rank, world_size, row_ind, col_ind, val, m, n, nnz, 
 				   vector_x, &res1, timer);
 
@@ -143,10 +153,26 @@ int main(int argc, char** argv)
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
+    MPI_Comm grid_comm;
+
+    int periods[2] = {0,0};
+
+    CHECK_MPI_CALL(MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 0, &grid_comm));
+
+    int grid_rank;
+
+    CHECK_MPI_CALL(MPI_Comm_rank(grid_comm, &grid_rank));
+
+    int coords[2];
+
+    CHECK_MPI_CALL(MPI_Cart_coords(grid_comm, grid_rank, 2, coords));
+
 
 	// Calculate SpMV using 2-D grid of processors and COO
 	spmv_coo_2d(world_rank, world_size, row_ind, col_ind, val, m, n, nnz,
-				vector_x, &res2, timer, dims[0], dims[1]);
+				vector_x, &res2, timer, dims[0], dims[1], coords[0], coords[1]);
+
+    MPI_Comm_free(&grid_comm);
 
     // Store the calculated vector in a file, one element per line.
     if(world_rank == 0) {
@@ -167,7 +193,7 @@ int main(int argc, char** argv)
 	free(res2);
 	#endif
 
-    MPI_Comm_free(&grid_comm);
+    
 
     MPI_Finalize();
 
@@ -640,33 +666,44 @@ void spmv_coo_2d(int world_rank, int world_size, int* row_ind, int* col_ind,
                  double* val, int m, int n, int nnz, double* vector_x,
                  double** res, double timer[], int grid_rows, int grid_cols, int curr_row, int curr_col)
 {
+    // printf("spawned process %d in position (%d, %d)", world_rank, curr_row, curr_col);
+
 	double start;
     double end;
 
-    int nnz_per_block = (nnz + world_size - 1) / world_size;
+    int nnz_per_block = 0;
+    if (world_rank == 0){
+        nnz_per_block = (nnz + world_size - 1) / world_size;
+    }
+
+    start = MPI_Wtime();
+
+    int params[3] = {m, n, nnz_per_block};
+    MPI_Bcast(params, 3, MPI_INT, 0, MPI_COMM_WORLD);
+    m = params[0];
+    n = params[1];
+    nnz_per_block = params[2];
+
+    MPI_Barrier(MPI_COMM_WORLD);
 
     if(world_rank != 0) {
         vector_x = (double*) malloc(sizeof(double) * n);
         assert(vector_x);
     }
+    MPI_Bcast(vector_x, n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
-
-    start = MPI_Wtime();
-
-    MPI_Bcast(&m, 1, MPI_INT, 0, grid_comm);
-    MPI_Bcast(&n, 1, MPI_INT, 0, grid_comm);
-    MPI_Bcast(vector_x, n, MPI_DOUBLE, 0, grid_comm);
-
-    printf("nnz in process %d in function is %d\n", world_rank, nnz);
+    printf("nnz_per_block in process %d in function is %d\n", world_rank, nnz_per_block);
 
 
     end = MPI_Wtime();
 
     timer[VEC_BCAST_TIME] = end - start;
 
+    // printf("starting memory allocation in process %d...\n", world_rank);
+
     if (world_rank == 0){
         int new_nnz = nnz_per_block * world_size;
-        printf("new_nnz in process %d is %d", world_rank, new_nnz);
+        printf("new_nnz in process %d is %d\n", world_rank, new_nnz);
         int* block_row_ind = (int*) malloc(new_nnz * sizeof(int));   
         assert(block_row_ind);
         memset(block_row_ind, 0, sizeof(int) * new_nnz); 
@@ -675,28 +712,34 @@ void spmv_coo_2d(int world_rank, int world_size, int* row_ind, int* col_ind,
         memset(block_col_ind, 0, sizeof(int) * new_nnz); 
         double* block_val = (double*) malloc(new_nnz * sizeof(double));
         assert(block_val);
-        memset(block_val, 0, sizeof(int) * new_nnz);
+        memset(block_val, 0, sizeof(double) * new_nnz);
 
         memcpy(block_row_ind, row_ind, sizeof(int) * nnz);
         memcpy(block_col_ind, col_ind, sizeof(int) * nnz);
         memcpy(block_val, val, sizeof(double) * nnz);
 
-        // free(row_ind);
-        // free(col_ind);
-        // free(val);
+        free(row_ind);
+        free(col_ind);
+        free(val);
 
         row_ind = block_row_ind;
         col_ind = block_col_ind;
         val = block_val;
     }
     else{
-        row_ind = (int*) malloc(sizeof(int) * nnz_per_block); 
+        row_ind = (int*) calloc(nnz_per_block, sizeof(int)); 
         assert(row_ind);   
-        col_ind = (int*) malloc(sizeof(int) * nnz_per_block);
+        col_ind = (int*) calloc(nnz_per_block, sizeof(int));
         assert(col_ind);
-        val = (double*) malloc(sizeof(double) * nnz_per_block);
+        val = (double*) calloc(nnz_per_block, sizeof(double));
         assert(val);
     }
+
+    // printf("memory allocated successfully in process %d\n", world_rank);
+
+    // printf("starting scatter in process %d\n", world_rank);
+
+    MPI_Barrier(MPI_COMM_WORLD);
 
     start = MPI_Wtime(); 
 
@@ -710,27 +753,35 @@ void spmv_coo_2d(int world_rank, int world_size, int* row_ind, int* col_ind,
     end = MPI_Wtime();
     timer[MAT_SCATTER_TIME] = end - start;
 
+    // printf("finished scatter in process %d\n", world_rank);
+    // printf("starting com_split in process %d\n", world_rank);
+
     MPI_Comm row_comm;
     MPI_Comm col_comm;
-    MPI_Comm_split(MPI_COMM_WORLD, grid_rows, world_rank, &row_comm);
-    MPI_Comm_split(MPI_COMM_WORLD, grid_cols, world_rank, &col_comm);
+    MPI_Barrier(MPI_COMM_WORLD);
+    CHECK_MPI_CALL(MPI_Comm_split(MPI_COMM_WORLD, curr_row, world_rank, &row_comm));
+    MPI_Barrier(MPI_COMM_WORLD);
+    CHECK_MPI_CALL(MPI_Comm_split(MPI_COMM_WORLD, curr_col, world_rank, &col_comm));
+    MPI_Barrier(MPI_COMM_WORLD);
     
-
-    start = MPI_Wtime();
-    omp_lock_t* writelock; 
-    init_locks(&writelock, m);
-    end = MPI_Wtime();
-    timer[LOCK_INIT_TIME] = end - start;
+    // printf("finished comm_split in process %d\n", world_rank);
 
     // set up result vector
     start = MPI_Wtime();
-    double* res_coo = (double*) malloc(sizeof(double) * m);;
+    double* res_coo = (double*) malloc(sizeof(double) * m);
     assert(res_coo);
+    memset(res_coo, 0, sizeof(double) * m);
 
     fprintf(stdout, "Calculating COO SpMV for process %d ... \n", world_rank);
     // Calculate SPMV using COO
-    spmv_coo(row_ind, col_ind, val, m, n, nnz_per_block, vector_x, res_coo, 
-             writelock);
+    if ((world_rank == (world_size - 1)) && nnz % world_size != 0){
+        for(int i = 0; i < (nnz % world_size); i++){
+            res_coo[row_ind[i] - 1] += val[i] * vector_x[col_ind[i] -1];
+        }
+    }
+    for(int i = 0; i < nnz_per_block; i++){
+        res_coo[row_ind[i] - 1] += val[i] * vector_x[col_ind[i] -1];
+    }
     fprintf(stdout, "done with process %d \n", world_rank);
     end = MPI_Wtime();
     timer[SPMV_COO_TIME] = end - start;
@@ -739,29 +790,58 @@ void spmv_coo_2d(int world_rank, int world_size, int* row_ind, int* col_ind,
 
 
     // Each rank has partial result - reduce to get the final result to rank 0
+
+    // printf("allocating result memory for process %d\n", world_rank);
+
     double* res_coo_final = NULL;
     if(world_rank == 0) {
         res_coo_final = (double*) malloc(sizeof(double) * m);
         assert(res_coo_final);
         memset(res_coo_final, 0, sizeof(double) * m);
     }
+    double* res_coo_row = NULL;
+    if (curr_col == 0){
+        res_coo_row = (double*) malloc(sizeof(double) * m);
+        assert(res_coo_row);
+        memset(res_coo_row, 0, sizeof(double) * m);
+    }
+
+    // printf("finished allocating result memory for process %d\n", world_rank);
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
     start = MPI_Wtime();
-    MPI_Reduce(res_coo, res_coo_final, m, MPI_DOUBLE, MPI_SUM, 0, 
-               grid_comm);
+    
+    // printf("about to reduce in process %d\n", world_rank);
+    
+    MPI_Reduce(res_coo, res_coo_row, m, MPI_DOUBLE, MPI_SUM, 0, row_comm);
+
+    // printf("reduced in process %d\n", world_rank);
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+    if (curr_col == 0){
+        // printf("about to reduce final result in process %d\n", world_rank);
+        MPI_Reduce(res_coo_row, res_coo_final, m, MPI_DOUBLE, MPI_SUM, 0, col_comm);
+        *res = res_coo_final;
+        // printf("reduced final result in process %d\n", world_rank);
+    }
+
     end = MPI_Wtime();
     timer[RES_REDUCE_TIME] = end - start;
 
-	*res = res_coo_final;
-
     free(res_coo);
+
     if(world_rank == 0) {
         free(res_coo_final);
         free(vector_x);
     }
+    if (curr_col == 0){
+        free(res_coo_row);
+    }
     free(row_ind);
     free(col_ind);
     free(val);
-    destroy_locks(writelock, m);
 }
 
 
