@@ -143,33 +143,10 @@ int main(int argc, char** argv)
         MPI_Abort(MPI_COMM_WORLD, 1);
     }
 
-    MPI_Comm grid_comm;
-
-    int periods[2] = {0,0};
-
-    CHECK_MPI_CALL(MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 0, &grid_comm));
-
-    int grid_rank;
-
-    CHECK_MPI_CALL(MPI_Comm_rank(grid_comm, &grid_rank));
-
-    int coords[2];
-
-    CHECK_MPI_CALL(MPI_Cart_coords(grid_comm, grid_rank, 2, coords));
-
-    printf("Process %d at coordinates (%d, %d)\n", grid_rank, coords[0], coords[1]);
-
-    printf("nnz in process %d is %d\n", grid_rank, nnz);
-
-    printf("Process %d has dim %d x %d\n", grid_rank, dims[0], dims[1]);
-
-    int nnz_per_block = (nnz + (dims[0]*dims[1]) - 1) / (dims[0]*dims[1]);
-
-    printf("Process %d: nnz_per_block = %d\n", grid_rank, nnz_per_block);
 
 	// Calculate SpMV using 2-D grid of processors and COO
-	spmv_coo_2d(grid_rank, world_size, row_ind, col_ind, val, m, n, nnz,
-				vector_x, &res2, timer, grid_comm, nnz_per_block);
+	spmv_coo_2d(world_rank, world_size, row_ind, col_ind, val, m, n, nnz,
+				vector_x, &res2, timer, dims[0], dims[1]);
 
     // Store the calculated vector in a file, one element per line.
     if(world_rank == 0) {
@@ -661,12 +638,12 @@ void spmv_coo_naive(int world_rank, int world_size, int* row_ind, int* col_ind, 
 
 void spmv_coo_2d(int world_rank, int world_size, int* row_ind, int* col_ind, 
                  double* val, int m, int n, int nnz, double* vector_x,
-                 double** res, double timer[], MPI_Comm grid_comm, int nnz_per_block)
+                 double** res, double timer[], int grid_rows, int grid_cols, int curr_row, int curr_col)
 {
 	double start;
     double end;
 
-    
+    int nnz_per_block = (nnz + world_size - 1) / world_size;
 
     if(world_rank != 0) {
         vector_x = (double*) malloc(sizeof(double) * n);
@@ -678,9 +655,7 @@ void spmv_coo_2d(int world_rank, int world_size, int* row_ind, int* col_ind,
 
     MPI_Bcast(&m, 1, MPI_INT, 0, grid_comm);
     MPI_Bcast(&n, 1, MPI_INT, 0, grid_comm);
-    // MPI_Bcast(&nnz_per_block, 1, MPI_INT, 0, grid_comm);
     MPI_Bcast(vector_x, n, MPI_DOUBLE, 0, grid_comm);
-    MPI_Bcast(&nnz, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
     printf("nnz in process %d in function is %d\n", world_rank, nnz);
 
@@ -734,6 +709,11 @@ void spmv_coo_2d(int world_rank, int world_size, int* row_ind, int* col_ind,
     
     end = MPI_Wtime();
     timer[MAT_SCATTER_TIME] = end - start;
+
+    MPI_Comm row_comm;
+    MPI_Comm col_comm;
+    MPI_Comm_split(MPI_COMM_WORLD, grid_rows, world_rank, &row_comm);
+    MPI_Comm_split(MPI_COMM_WORLD, grid_cols, world_rank, &col_comm);
     
 
     start = MPI_Wtime();

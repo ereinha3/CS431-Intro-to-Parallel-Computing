@@ -30,7 +30,7 @@ void spmv_coo_naive(int world_rank, int world_size, int* row_ind, int* col_ind,
 					double** res, double timer[]);
 void spmv_coo_2d(int world_rank, int world_size, int* row_ind, int* col_ind, 
 				 double* val, int m, int n, int nnz, double* vector_x,
-				 double** res, double timer[], MPI_Comm grid_comm, int nnz_per_block);
+				 double** res, double timer[], int grid_rows, int grid_cols);
 
 #endif
 
