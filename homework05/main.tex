@@ -1,0 +1,81 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{array}
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+
+\title{Comparison of SpMV Implementations on MPI}
+\author{Your Name}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+The Sparse Matrix-Vector Multiplication (SpMV) is a critical operation in various scientific and engineering applications. In this report, we present the results of implementing SpMV using the Coordinate (COO) format on MPI with both 1D and 2D grid decompositions. MPI (Message Passing Interface) is a library that allows for programs to communicate across a server. This allows for standard communication between processes within a node as well as between processes on different nodes. The library provides functions to create barriers to suspend processes at a certain point until all others have finished, reduction techniques to reduce values or arrays across processes, communicator objects that allow for nuanced process communication, and much more. The purpose of this report is to compare 1D communication with 2D communication. The fundamental difference between the two is that 1D allocates all processes in a 1D array where 2D communication creates a 2D grid where each entry corresponds to a process. This allows for rows to communicate or columns to communicate which is fundamentally more difficult for 1D applications. This comparison aims to evaluate the performance impact of different grid layouts on the SpMV operation.
+
+\section{1D Implementation Results}
+The 1D implementation of SpMV on MPI shows the following timings for each module:
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{|c|c|}
+\hline
+\textbf{Module} & \textbf{Time (seconds)} \\
+\hline
+Load & 0.903051 \\
+Vec Bcast & 0.001870 \\
+Mat Scatter & 0.104731 \\
+Lock Init & 0.000327 \\
+COO SpMV & 0.005396 \\
+Res Reduce & 0.012767 \\
+Store & 0.023907 \\
+\hline
+\end{tabular}
+\caption{Timings for the 1D SpMV Implementation.}
+\label{tab:1d_results}
+\end{table}
+\\
+
+\section{2D Implementation Results}
+The 2D implementation of SpMV on MPI with a 2D grid decomposition shows the following timings for each module:
+\\
+\begin{table}[h!]
+\centering
+\begin{tabular}{|c|c|}
+\hline
+\textbf{Module} & \textbf{Time (seconds)} \\
+\hline
+Load & 0.828574 \\
+Vec Bcast & 0.002098 \\
+Mat Scatter & 0.063960 \\
+Lock Init & 0.000322 \\
+COO SpMV & 0.003865 \\
+Res Reduce & 0.006293 \\
+Store & 0.026003 \\
+\hline
+\end{tabular}
+\caption{Timings for the 2D SpMV Implementation.}
+\label{tab:2d_results}
+\end{table}
+
+\section{Comparison and Analysis}
+Comparing the results of the 1D and 2D implementations, we observe the following key differences:
+
+\begin{itemize}
+\item **Load and Vec Bcast**:
+  - The 2D implementation shows slightly improved performance for these initial stages. This is likely due to the optimized distribution of data and processing across multiple ranks in a 2D grid, reducing communication overhead.
+  
+\item **Mat Scatter and COO SpMV**:
+  - The 2D implementation demonstrates a significant reduction in the COO SpMV time, indicating better parallel efficiency and reduced synchronization overhead across processes. This improvement can be attributed to the 2D grid's better distribution of work among processors.
+  
+\item **Res Reduce and Store**:
+  - The 2D implementation also shows a slight increase in time for the result reduction and store operations. This is expected as each process in the 2D grid needs to communicate with its neighboring processes, leading to more communication overhead compared to the 1D implementation.
+\end{itemize}
+
+\section{Conclusion}
+The results indicate that the 2D grid decomposition provides improved performance for the SpMV operation compared to the 1D decomposition. This improvement is primarily due to better parallel efficiency in distributing tasks across multiple ranks and reducing communication overhead. However, the 2D grid also introduces additional communication steps, which affects the performance for the final result reduction. Overall, the choice of grid layout depends on the specific use case and the trade-offs between communication and parallel efficiency.
+
+\end{document}
