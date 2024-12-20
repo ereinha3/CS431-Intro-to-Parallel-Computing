@@ -1,0 +1,4 @@
+Run sh autoRun.sh to spawn 20 processes per thread_count (7, 14, 21, 28) per step_count (100m, 500m, 1b, 2b)
+
+I created a bash script to iterate over my created thread counts and step sizes. I created a directory for atomic and critical.
+Run sh autoRun.sh in root directory on Talapas to spawn the processes. Once finished, run python pi_average.py in either critical/output or atomic/output to get an average over 20 iterations for all combinations of threads and step sizes

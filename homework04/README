@@ -1,0 +1,3 @@
+THIS SCRIPT REQUIRES A SYSTEM WITH SLURM SCHEDULING. 
+Modifications to the slurm script will need to be made in accordance with your system. If running this on Talapas, no modifications other than the split need to be modified.
+If your system has these capabilities run sbatch spmv.srun.

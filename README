@@ -1,0 +1,22 @@
+This repository consists of the curricular work for CS431 Introduction to Parallel Computing.
+Material covered includes hardware optimization, OpemMP programming, CUDA programming, and MPI programming.
+
+Homework 1: Parallelized Calculation of Pi with OpenMP
+	- Serial Version
+	- Parallel Integration method with OpenMP
+	- Parallel Monte Carlo with OpenMP
+
+Homework 2: Parallelized Pre-Fix Sum with OpenMP
+	- Serial sum is O(n) time
+	- Pre-fix sum is O(nlogn) but allows for parallelization
+
+Homework 3: Parallelized Sparse Matrix Vector Multiplication (SpMV) using OpenMP
+	- Convert COO format to CSR format
+	- Calculate SPMV with COO format in serial
+	- Calculate SPMV with COO format using OpenMP
+	- Calculate SPMV with CSR format in serial
+	- Calculate SPMV with CSR format using OpenMP
+
+Homework 4: 
+	
+

@@ -1,27 +1,3 @@
-This homework involves implementing sparse matrix-vector multiply (SpMV) on a disstributed system using MPI.
-
-Setup:
-1) I have provided a batch file for using MPI (mpi_test.batch), which shows how to execute MPI code. Things to note are:
-    a) It uses openmpi/4.1.5 as the MPI library, and loads the module before starting execution
-    b) It uses mpirun to launch MPI code
-
-2) Currently nodes=1, --ntasks-per-node=4, --cpus-per-task=1
-   This suggest the code is using 1 physical compute node, but creates 4 MPI tasks on the node, each using 1 processor core. This was done to make it easier to get a compute node for testing (getting multiple nodes is more difficult).
-   While you are running performance tests, try to use up to 4 nodes if they are available. If you are running with multiple compute nodes, try to use --ntasks-per-node=1 and --cpus-per-task=28 and use OpenMP to parallelize your code in each MPI task (1 MPI task is assigned to 1 compute node).
-
-3) I have provided a MPI version of SpMV using COO.
-   Read the code to understand what's happening.
-   a) The code first loads the input matrix and vector using the rank 0, and then distribute the data to the other nodes.
-   b) Then, the other nodes comptues a local SpMV.
-   c) The partial results are collected/reduced in rank 0, and then saved to a file.
-
-
-Assignment:
-1) Read the provided code to get a clear understanding of how MPI works.
-2) Choose one of the following tasks and implement it:
-    a) Use COO, but use a 2-D grid of MPI tasks, such that each row is assigned to multiple MPI tasks. Make sure to use MPI Comm groups to implement your code.
-    b) Use CSR, but 
-        (i) distribute the non-zero elements as evenly as possible (i.e., come up with a good heuristic for load balancing),
-        (i) do the COO-to-CSR conversion in *each* node, 
-        (ii) allocate just enough memory to store the result vector (i.e., don't allocate all n elements).
-        (ii) collect the final result in rank 0 - challenge will be in figuring out how to reduce the data correctly, as multiple nodes may have partial result for certain rows. (hint: you are allowed to sort the data on rank 0 first before distributing the non-zero elements).
+THIS SCRIPT REQUIRES A SYSTEM WITH A SLURM SCHEDULER.
+If the system has a SLURM scheduler, modify mpi_test.sbatch to align with your system.
+Run sbatch mpi_test.sbatch to run the MPI scheduler and execute the program.
