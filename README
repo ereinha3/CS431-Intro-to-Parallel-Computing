@@ -1,22 +1,69 @@
-This repository consists of the curricular work for CS431 Introduction to Parallel Computing.
-Material covered includes hardware optimization, OpemMP programming, CUDA programming, and MPI programming.
+# CS431 - Introduction to Parallel Computing
 
-Homework 1: Parallelized Calculation of Pi with OpenMP
-	- Serial Version
-	- Parallel Integration method with OpenMP
-	- Parallel Monte Carlo with OpenMP
+This repository contains the curricular work for CS431 Introduction to Parallel Computing. The course covers various aspects of parallel computing including hardware optimization, OpenMP programming, CUDA programming, and MPI programming.
 
-Homework 2: Parallelized Pre-Fix Sum with OpenMP
-	- Serial sum is O(n) time
-	- Pre-fix sum is O(nlogn) but allows for parallelization
+## Repository Structure
 
-Homework 3: Parallelized Sparse Matrix Vector Multiplication (SpMV) using OpenMP
-	- Convert COO format to CSR format
-	- Calculate SPMV with COO format in serial
-	- Calculate SPMV with COO format using OpenMP
-	- Calculate SPMV with CSR format in serial
-	- Calculate SPMV with CSR format using OpenMP
+- `homework01/`: Parallelized Calculation of Pi using OpenMP
+- `homework02/`: Parallelized Pre-Fix Sum using OpenMP
+- `homework03/`: Parallelized Sparse Matrix Vector Multiplication (SpMV) using OpenMP
+- `homework04/`: [To be completed]
+- `homework05/`: [To be completed]
 
-Homework 4: 
-	
+## Getting Started
+
+1. Clone this repository
+2. Run the setup script:
+   ```bash
+   chmod +x RUNTHISAFTERYOUPULL.sh
+   ./RUNTHISAFTERYOUPULL.sh
+   ```
+
+## Homework Assignments
+
+### Homework 1: Parallelized Calculation of Pi
+- Implements different methods to calculate Pi using OpenMP
+- Includes both serial and parallel versions
+- Features integration method and Monte Carlo simulation
+- Located in `homework01/`
+
+### Homework 2: Parallelized Pre-Fix Sum
+- Implements parallel prefix sum algorithm using OpenMP
+- Compares serial (O(n)) vs parallel (O(log n)) implementations
+- Located in `homework02/`
+
+### Homework 3: Sparse Matrix Vector Multiplication
+- Implements SpMV using different formats (COO and CSR)
+- Includes both serial and OpenMP parallel versions
+- Features format conversion and performance comparison
+- Located in `homework03/`
+
+## Running the Code
+
+Each homework directory contains its own `autoRun.sh` script that can be used to compile and run the code. To run any homework:
+
+1. Navigate to the homework directory
+2. Make the run script executable:
+   ```bash
+   chmod +x autoRun.sh
+   ```
+3. Run the script:
+   ```bash
+   ./autoRun.sh
+   ```
+
+## Requirements
+
+- C/C++ compiler with OpenMP support
+- Make build system
+- For detailed requirements, check individual homework directories
+
+## Contributing
+
+This is a course repository. Please refer to the course guidelines for submission requirements.
+
+## License
+
+This project is part of academic coursework. Please refer to your course materials for usage guidelines.
+
 

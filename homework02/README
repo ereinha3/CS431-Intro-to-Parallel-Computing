@@ -1,1 +1,84 @@
-Run sh autoRun.sh to execute the code.
+# Homework 2: Parallelized Pre-Fix Sum
+
+This homework implements a parallel prefix sum algorithm using OpenMP. The implementation compares serial (O(n)) and parallel (O(log n)) approaches to compute prefix sums.
+
+## Directory Structure
+
+- `thread7/`: Output directory for 7 threads
+- `thread14/`: Output directory for 14 threads
+- `thread21/`: Output directory for 21 threads
+- `graphs/`: Contains performance comparison graphs
+
+## Implementation Details
+
+The implementation includes:
+- Serial prefix sum algorithm (O(n))
+- Parallel prefix sum algorithm using OpenMP (O(log n))
+- Performance comparison between different thread counts
+- Data visualization using Python
+
+### Key Files
+- `prefix.c`: Main implementation file
+- `common.h`: Common header file with shared functions
+- `common.c`: Implementation of common functions
+- `Makefile`: Build configuration
+- `processor.py`: Python script for data processing and visualization
+- `*.srun`: SLURM job scripts for different thread counts (7, 14, 21, 28 threads)
+
+## Building and Running
+
+### Using the Auto-Run Script
+The easiest way to run the code is using the provided `autoRun.sh` script:
+```bash
+chmod +x autoRun.sh
+./autoRun.sh
+```
+
+### Manual Build and Run
+1. Build the code:
+   ```bash
+   make
+   ```
+2. Run with different thread counts:
+   ```bash
+   ./prefix07.srun  # 7 threads
+   ./prefix14.srun  # 14 threads
+   ./prefix21.srun  # 21 threads
+   ./prefix28.srun  # 28 threads
+   ```
+
+## Performance Analysis
+
+After running the tests, you can analyze the results using the Python script:
+```bash
+python processor.py
+```
+
+This will:
+- Process the output files from each thread directory
+- Generate performance comparison graphs
+- Save the graphs in the `graphs/` directory
+
+## Requirements
+
+- C compiler with OpenMP support
+- Make build system
+- Python 3.x (for data processing)
+- SLURM workload manager (for .srun scripts)
+
+## Output
+
+The program outputs:
+- Input array
+- Computed prefix sum array
+- Execution time
+- Number of threads used
+- Method used (serial/parallel)
+
+## Performance Comparison
+
+The implementation allows for comparison between:
+- Serial vs Parallel execution
+- Different thread counts (7, 14, 21, 28 threads)
+- Different input sizes
+- Theoretical vs Actual performance

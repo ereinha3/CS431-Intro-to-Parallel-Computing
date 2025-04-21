@@ -1,3 +1,90 @@
-THIS SCRIPT REQUIRES A SYSTEM WITH SLURM SCHEDULING. 
-Modifications to the slurm script will need to be made in accordance with your system. If running this on Talapas, no modifications other than the split need to be modified.
-If your system has these capabilities run sbatch spmv.srun.
+# Homework 4: CUDA-based Sparse Matrix Vector Multiplication (SpMV)
+
+This homework implements Sparse Matrix Vector Multiplication using CUDA for GPU acceleration. The implementation includes both COO (Coordinate) and CSR (Compressed Sparse Row) formats, with CPU and GPU versions of each.
+
+## Directory Structure
+
+- `cant/`: Contains test matrices in Matrix Market format
+- `*.srun`: SLURM job scripts for execution
+
+## Implementation Details
+
+The implementation includes:
+- Matrix format conversion (COO to CSR)
+- CPU SpMV implementation for both formats
+- CUDA GPU SpMV implementation for both formats
+- Performance comparison between CPU and GPU implementations
+
+### Key Files
+- `main.cc`: Main implementation file
+- `spmv.cu`: CUDA kernel implementations
+- `mmio.c`/`mmio.h`: Matrix Market I/O functions
+- `common.h`/`common.c`: Common utility functions
+- `Makefile`: Build configuration with CUDA support
+- `spmv.srun`: SLURM job script for GPU execution
+
+## Building and Running
+
+### Using SLURM
+The easiest way to run the code is using the provided SLURM script:
+```bash
+sbatch spmv.srun
+```
+
+### Manual Build and Run
+1. Build the code:
+   ```bash
+   make
+   ```
+2. Run the program:
+   ```bash
+   ./spmv <matrix_file>
+   ```
+
+## Matrix Format Support
+
+The implementation supports:
+- COO (Coordinate) format
+  - Stores row, column, and value for each non-zero element
+  - Good for matrix construction and format conversion
+- CSR (Compressed Sparse Row) format
+  - More efficient for SpMV operations on GPU
+  - Stores row pointers, column indices, and values
+
+## CUDA Implementation
+
+The CUDA implementation includes:
+- Memory management for GPU
+- Kernel implementations for both formats
+- Error checking and synchronization
+- Performance optimization techniques
+
+## Requirements
+
+- CUDA Toolkit
+- C/C++ compiler
+- Make build system
+- SLURM workload manager (for .srun scripts)
+- GPU with CUDA support
+
+## Output
+
+The program outputs:
+- Matrix statistics (dimensions, number of non-zero elements)
+- Execution time for each operation
+- Verification of results
+- Performance metrics for CPU vs GPU implementations
+
+## Performance Comparison
+
+The implementation allows for comparison between:
+- CPU vs GPU execution
+- COO vs CSR format on GPU
+- Different matrix sizes and sparsity patterns
+- Memory transfer overhead vs computation time
+
+## Notes
+
+- The implementation assumes the GPU has sufficient memory for the input matrices
+- For very large matrices, consider using streaming or partitioning approaches
+- Performance may vary based on GPU architecture and matrix characteristics

@@ -1,0 +1,89 @@
+# Homework 5: MPI-based Sparse Matrix Vector Multiplication (SpMV)
+
+This homework implements Sparse Matrix Vector Multiplication using MPI for distributed computing. The implementation includes both COO (Coordinate) and CSR (Compressed Sparse Row) formats, with distributed versions of each.
+
+## Directory Structure
+
+- `cant/`: Contains test matrices in Matrix Market format
+- `mpi_test.batch`: SLURM batch script for MPI execution
+
+## Implementation Details
+
+The implementation includes:
+- Matrix format conversion (COO to CSR)
+- Distributed SpMV implementation for both formats
+- MPI-based data distribution and communication
+- Performance comparison between different approaches
+
+### Key Files
+- `main.cc`: Main implementation file
+- `mmio.cc`/`mmio.h`: Matrix Market I/O functions
+- `common.h`/`common.cc`: Common utility functions
+- `Makefile`: Build configuration with MPI support
+- `mpi_test.batch`: SLURM batch script for MPI execution
+
+## Building and Running
+
+### Using SLURM
+The easiest way to run the code is using the provided SLURM batch script:
+```bash
+sbatch mpi_test.batch
+```
+
+### Manual Build and Run
+1. Build the code:
+   ```bash
+   make
+   ```
+2. Run with MPI:
+   ```bash
+   mpirun -np <number_of_processes> ./spmv <matrix_file>
+   ```
+
+## Matrix Format Support
+
+The implementation supports:
+- COO (Coordinate) format
+  - Stores row, column, and value for each non-zero element
+  - Good for matrix construction and format conversion
+- CSR (Compressed Sparse Row) format
+  - More efficient for SpMV operations in distributed setting
+  - Stores row pointers, column indices, and values
+
+## MPI Implementation
+
+The MPI implementation includes:
+- Matrix distribution across processes
+- Vector distribution and communication
+- Result gathering and verification
+- Performance optimization techniques
+
+## Requirements
+
+- MPI implementation (e.g., OpenMPI, MPICH)
+- C++ compiler
+- Make build system
+- SLURM workload manager (for batch scripts)
+
+## Output
+
+The program outputs:
+- Matrix statistics (dimensions, number of non-zero elements)
+- Execution time for each operation
+- Verification of results
+- Performance metrics for different process counts
+
+## Performance Comparison
+
+The implementation allows for comparison between:
+- Different process counts
+- COO vs CSR format in distributed setting
+- Different matrix sizes and sparsity patterns
+- Communication overhead vs computation time
+
+## Notes
+
+- The implementation assumes the matrices fit in memory across all processes
+- For very large matrices, consider using streaming or partitioning approaches
+- Performance may vary based on network characteristics and process count
+- Consider using different matrix distribution strategies for different sparsity patterns 

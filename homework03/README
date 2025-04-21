@@ -1,1 +1,89 @@
-Run sh run.sh to run the program.
+# Homework 3: Parallelized Sparse Matrix Vector Multiplication (SpMV)
+
+This homework implements parallelized Sparse Matrix Vector Multiplication using OpenMP. The implementation includes both COO (Coordinate) and CSR (Compressed Sparse Row) formats, with serial and parallel versions of each.
+
+## Directory Structure
+
+- `cant/`: Contains test matrices in Matrix Market format
+- `out/`: Output directory for results
+- `*.srun`: SLURM job scripts for execution
+
+## Implementation Details
+
+The implementation includes:
+- Matrix format conversion (COO to CSR)
+- Serial SpMV implementation for both formats
+- Parallel SpMV implementation using OpenMP for both formats
+- Performance comparison between different approaches
+
+### Key Files
+- `main.c`: Main implementation file
+- `mmio.c`/`mmio.h`: Matrix Market I/O functions
+- `common.h`/`common.c`: Common utility functions
+- `Makefile`: Build configuration
+- `avg.py`: Python script for averaging results
+- `my.srun`: SLURM job script
+
+## Building and Running
+
+### Using the Run Script
+The easiest way to run the code is using the provided `run.sh` script:
+```bash
+chmod +x run.sh
+./run.sh
+```
+
+### Manual Build and Run
+1. Build the code:
+   ```bash
+   make
+   ```
+2. Run using SLURM:
+   ```bash
+   sbatch my.srun
+   ```
+
+## Matrix Format Support
+
+The implementation supports:
+- COO (Coordinate) format
+  - Stores row, column, and value for each non-zero element
+  - Good for matrix construction and format conversion
+- CSR (Compressed Sparse Row) format
+  - More efficient for SpMV operations
+  - Stores row pointers, column indices, and values
+
+## Performance Analysis
+
+After running the tests, you can analyze the results using the Python script:
+```bash
+python avg.py
+```
+
+This will:
+- Process the output files
+- Calculate average performance metrics
+- Generate performance comparison data
+
+## Requirements
+
+- C compiler with OpenMP support
+- Make build system
+- Python 3.x (for data processing)
+- SLURM workload manager (for .srun scripts)
+
+## Output
+
+The program outputs:
+- Matrix statistics (dimensions, number of non-zero elements)
+- Execution time for each operation
+- Verification of results
+- Performance metrics for different implementations
+
+## Performance Comparison
+
+The implementation allows for comparison between:
+- COO vs CSR format
+- Serial vs Parallel execution
+- Different thread counts
+- Different matrix sizes and sparsity patterns

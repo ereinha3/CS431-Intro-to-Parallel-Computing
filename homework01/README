@@ -1,4 +1,69 @@
-Run sh autoRun.sh to spawn 20 processes per thread_count (7, 14, 21, 28) per step_count (100m, 500m, 1b, 2b)
+# Homework 1: Parallelized Calculation of Pi
 
-I created a bash script to iterate over my created thread counts and step sizes. I created a directory for atomic and critical.
-Run sh autoRun.sh in root directory on Talapas to spawn the processes. Once finished, run python pi_average.py in either critical/output or atomic/output to get an average over 20 iterations for all combinations of threads and step sizes
+This homework implements different methods to calculate Pi using OpenMP parallelization. The implementation includes both serial and parallel versions using different synchronization methods.
+
+## Directory Structure
+
+- `atomic/`: Implementation using atomic operations for thread synchronization
+- `critical/`: Implementation using critical sections for thread synchronization
+
+## Implementation Details
+
+Both implementations (`atomic/` and `critical/`) contain:
+- Serial version of Pi calculation
+- Parallel version using OpenMP
+- Integration method implementation
+- Monte Carlo simulation method
+
+### Key Files
+- `pi.c`: Main implementation file
+- `common.h`: Common header file with shared functions
+- `common.c`: Implementation of common functions
+- `Makefile`: Build configuration
+- `*.srun`: SLURM job scripts for different thread counts (7, 14, 21, 28 threads)
+
+## Building and Running
+
+### Using the Auto-Run Script
+The easiest way to run the code is using the provided `autoRun.sh` script:
+```bash
+chmod +x autoRun.sh
+./autoRun.sh
+```
+
+### Manual Build and Run
+1. Navigate to either `atomic/` or `critical/` directory
+2. Build the code:
+   ```bash
+   make
+   ```
+3. Run with different thread counts:
+   ```bash
+   # For atomic implementation
+   ./pi07.srun  # 7 threads
+   ./pi14.srun  # 14 threads
+   ./pi21.srun  # 21 threads
+   ./pi28.srun  # 28 threads
+   ```
+
+## Performance Comparison
+
+The implementation allows for comparison between:
+- Serial vs Parallel execution
+- Atomic operations vs Critical sections
+- Different thread counts (7, 14, 21, 28 threads)
+
+## Requirements
+
+- C compiler with OpenMP support
+- Make build system
+- SLURM workload manager (for .srun scripts)
+
+## Output
+
+The program outputs:
+- Calculated value of Pi
+- Execution time
+- Number of threads used
+- Method used (serial/parallel)
+- Synchronization method (atomic/critical)
